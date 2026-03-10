@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cutting Optimizer V9 - Safety Validation</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #d35400; --bg: #f8f9fa; --error: #e74c3c; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); padding: 20px; margin: 0; }
+        .container { max-width: 1300px; margin: auto; display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+        .sidebar { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); height: fit-content; }
+        .item-row { display: grid; grid-template-columns: 1fr 1fr 1fr 40px; gap: 8px; margin-bottom: 12px; }
+        .item-row.invalid input { border-color: var(--error); background-color: #fff5f5; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
+        button { cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.2s; }
+        .btn-add { background: #27ae60; color: white; width: 100%; padding: 12px; margin-bottom: 10px; }
+        .btn-calc { background: #2980b9; color: white; width: 100%; padding: 15px; font-size: 16px; width: 100%; margin-bottom: 10px; }
+        .btn-io { background: #7f8c8d; color: white; width: 48%; padding: 10px; font-size: 12px; }
+        .btn-del { background: #ccc; color: #333; }
+        .btn-del:hover { background: var(--error); color: white; }
+        .error-msg { color: var(--error); font-size: 12px; margin-bottom: 10px; display: none; font-weight: bold; }
+        .output { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .sheet-card { border: 1px solid #dee2e6; border-radius: 12px; padding: 20px; margin-bottom: 30px; }
+        canvas { width: 100%; border: 1px solid #444; background: #fff; }
+        .summary-bar { background: var(--primary); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-around; }
+        #fileInput { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="sidebar">
+        <title>SmartCut Optimizer</title>
+        <h2 style="margin-top:0;">🛡️ SmartCut Optimizer</h2>
+        <p style="font-size: 13px; color: #666;">ขนาดวัสดุหลัก: <b>200 x 100 ซม.</b></p>
+        
+        <div id="error-banner" class="error-msg">⚠️ มีชิ้นงานขนาดใหญ่เกินวัสดุ!</div>
+
+        <div id="items-list">
+            <div class="item-row">
+                <input type="number" class="w" value="140" placeholder="กว้าง">
+                <input type="number" class="h" value="48" placeholder="สูง">
+                <input type="number" class="qty" value="2" placeholder="ตัว">
+                <button class="btn-del" onclick="this.parentElement.remove()">✕</button>
+            </div>
+        </div>
+
+        <button class="btn-add" onclick="addItem()">+ เพิ่มชิ้นงาน</button>
+        <button class="btn-calc" onclick="validateAndRun()">คำนวณแผนการตัด</button>
+        
+        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+            <button class="btn-io" onclick="exportData()">📤 Export</button>
+            <button class="btn-io" onclick="document.getElementById('fileInput').click()">📥 Import</button>
+            <input type="file" id="fileInput" accept=".json" onchange="importData(event)">
+        </div>
+    </div>
+
+    <div class="output">
+        <div id="summary-area"></div>
+        <div id="results-area">
+             <div style="text-align:center; padding:100px; color:#ccc;">รอการคำนวณ...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SHEET_W = 200, SHEET_H = 100, KERF = 1, SCALE = 5;
+
+    function addItem(w='', h='', qty='') {
+        const div = document.createElement('div');
+        div.className = 'item-row';
+        div.innerHTML = `
+            <input type="number" class="w" value="${w}" placeholder="กว้าง">
+            <input type="number" class="h" value="${h}" placeholder="สูง">
+            <input type="number" class="qty" value="${qty}" placeholder="ตัว">
+            <button class="btn-del" onclick="this.parentElement.remove()">✕</button>`;
+        document.getElementById('items-list').appendChild(div);
+    }
+
+    function validateAndRun() {
+        const rows = document.querySelectorAll('.item-row');
+        const errorBanner = document.getElementById('error-banner');
+        let hasError = false;
+
+        errorBanner.style.display = 'none';
+        
+        rows.forEach(row => {
+            const w = parseFloat(row.querySelector('.w').value);
+            const h = parseFloat(row.querySelector('.h').value);
+            row.classList.remove('invalid');
+
+            // ตรวจสอบว่าชิ้นงาน (ไม่ว่าจะวางท่าไหน) ต้องไม่เกินขนาดแผ่น
+            // กรณีที่ 1: วางปกติ W <= 200 และ H <= 100
+            // กรณีที่ 2: วางสลับด้าน W <= 100 และ H <= 200
+            const fitsNormal = (w <= SHEET_W && h <= SHEET_H);
+            const fitsRotated = (h <= SHEET_W && w <= SHEET_H);
+
+            if (!fitsNormal && !fitsRotated) {
+                row.classList.add('invalid');
+                hasError = true;
+            }
+        });
+
+        if (hasError) {
+            errorBanner.style.display = 'block';
+            alert('ไม่สามารถคำนวณได้: มีชิ้นงานบางส่วนใหญ่เกินขนาดวัสดุ (200x100 ซม.)');
+            return;
+        }
+
+        runCalculation();
+    }
+
+    function runCalculation() {
+        let items = [];
+        document.querySelectorAll('.item-row').forEach(row => {
+            let w = parseFloat(row.querySelector('.w').value);
+            let h = parseFloat(row.querySelector('.h').value);
+            let qty = parseInt(row.querySelector('.qty').value);
+            if(w && h && qty) {
+                for(let i=0; i<qty; i++) items.push({w, h});
+            }
+        });
+
+        items.sort((a, b) => (b.w * b.h) - (a.w * a.h));
+        let sheets = [];
+
+        for (let item of items) {
+            let placed = false;
+            for (let sheet of sheets) {
+                for (let strip of sheet.strips) {
+                    let hUsed = strip.items.reduce((s, it) => s + it.h + KERF, 0);
+                    if (item.w <= strip.w && hUsed + item.h <= SHEET_H) {
+                        strip.items.push({ ...item, x: strip.x, y: hUsed });
+                        sheet.usedArea += (item.w * item.h); placed = true; break;
+                    }
+                    if (item.h <= strip.w && hUsed + item.w <= SHEET_H) {
+                        strip.items.push({ w: item.h, h: item.w, x: strip.x, y: hUsed });
+                        sheet.usedArea += (item.w * item.h); placed = true; break;
+                    }
+                }
+                if (placed) break;
+
+                let wUsed = sheet.strips.reduce((s, st) => s + st.w + KERF, 0);
+                let bestW = Math.min(item.w, item.h), bestH = Math.max(item.w, item.h);
+                if (bestH > SHEET_H) [bestW, bestH] = [item.w, item.h];
+
+                if (wUsed + bestW <= SHEET_W) {
+                    sheet.strips.push({ x: wUsed, w: bestW, items: [{ w: bestW, h: bestH, x: wUsed, y: 0 }] });
+                    sheet.usedArea += (item.w * item.h); placed = true; break;
+                }
+            }
+            if (!placed) {
+                let bestW = Math.min(item.w, item.h), bestH = Math.max(item.w, item.h);
+                if (bestH > SHEET_H) [bestW, bestH] = [item.w, item.h];
+                sheets.push({ usedArea: (item.w * item.h), strips: [{ x: 0, w: bestW, items: [{ w: bestW, h: bestH, x: 0, y: 0 }] }] });
+            }
+        }
+        render(sheets);
+    }
+
+    function render(sheets) {
+        const res = document.getElementById('results-area');
+        const sumArea = document.getElementById('summary-area');
+        res.innerHTML = "";
+        let totalEff = sheets.reduce((a, b) => a + (b.usedArea / (SHEET_W * SHEET_H)), 0) / sheets.length * 100;
+        sumArea.innerHTML = `<div class="summary-bar"><span>แผ่นที่ใช้: ${sheets.length} แผ่น</span><span>ประสิทธิภาพ: ${totalEff.toFixed(1)}%</span></div>`;
+        sheets.forEach((sheet, idx) => {
+            const card = document.createElement('div');
+            card.className = 'sheet-card';
+            card.innerHTML = `<div><b>แผ่นที่ ${idx+1}</b></div><canvas id="c${idx}"></canvas>`;
+            res.appendChild(card);
+            const canvas = card.querySelector('canvas');
+            canvas.width = SHEET_W * SCALE; canvas.height = SHEET_H * SCALE;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = "#eee"; ctx.fillRect(0,0,canvas.width, canvas.height);
+            sheet.strips.forEach(st => {
+                st.items.forEach(it => {
+                    ctx.fillStyle = "#e3f2fd"; ctx.fillRect(it.x*SCALE, it.y*SCALE, it.w*SCALE, it.h*SCALE);
+                    ctx.strokeStyle = "#2980b9"; ctx.strokeRect(it.x*SCALE, it.y*SCALE, it.w*SCALE, it.h*SCALE);
+                    ctx.fillStyle = "#000"; ctx.font = "bold 10px Arial"; ctx.textAlign = "center";
+                    ctx.fillText(`${it.w}x${it.h}`, (it.x + it.w/2)*SCALE, (it.y + it.h/2 + 4)*SCALE);
+                });
+                ctx.setLineDash([8,4]); ctx.strokeStyle = "#d35400"; ctx.beginPath();
+                ctx.moveTo((st.x+st.w)*SCALE, 0); ctx.lineTo((st.x+st.w)*SCALE, SHEET_H*SCALE); ctx.stroke();
+            });
+        });
+    }
+
+    function exportData() {
+        let data = [];
+        document.querySelectorAll('.item-row').forEach(row => {
+            data.push({ w: row.querySelector('.w').value, h: row.querySelector('.h').value, qty: row.querySelector('.qty').value });
+        });
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'cutting_list.json';
+        a.click();
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                document.getElementById('items-list').innerHTML = '';
+                data.forEach(item => addItem(item.w, item.h, item.qty));
+            } catch (err) { alert('ไฟล์ไม่ถูกต้อง'); }
+        };
+        reader.readAsText(file);
+    }
+</script>
+</body>
+</html>
