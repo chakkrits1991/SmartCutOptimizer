@@ -3,19 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartCut 200 Optimizer V10</title>
+    <title>SmartCut 200 Optimizer V11</title>
     <style>
         :root { --primary: #2c3e50; --accent: #d35400; --bg: #f4f7f6; --error: #e74c3c; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
         
-        /* Layout หลัก: ปรับเป็น Column บนมือถือ และ Row บนคอม */
-        .container { 
-            max-width: 1300px; 
-            margin: auto; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 15px; 
-        }
+        .container { max-width: 1300px; margin: auto; display: flex; flex-direction: column; gap: 15px; }
         @media (min-width: 992px) {
             .container { flex-direction: row; padding: 20px; }
             .sidebar { width: 350px; flex-shrink: 0; }
@@ -25,34 +18,36 @@
         .sidebar { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         .output { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
 
-        /* ปรับปรุงการกรอกข้อมูล */
         .item-row { display: grid; grid-template-columns: 1fr 1fr 1fr 40px; gap: 5px; margin-bottom: 10px; }
         input { width: 100%; padding: 12px 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         
         button { cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: 0.2s; touch-action: manipulation; }
         .btn-add { background: #27ae60; color: white; width: 100%; padding: 12px; margin: 10px 0; }
-        .btn-calc { background: #2980b9; color: white; width: 100%; padding: 18px; font-size: 18px; width: 100%; margin-top: 5px; }
+        .btn-calc { background: #2980b9; color: white; width: 100%; padding: 18px; font-size: 18px; width: 100%; }
         .btn-io { background: #7f8c8d; color: white; flex: 1; padding: 10px; font-size: 14px; margin: 5px; }
         .btn-del { background: #eee; color: #666; font-size: 18px; }
 
-        /* ส่วนแสดงผล Canvas ให้เลื่อนซ้ายขวาได้บนมือถือ */
-        .canvas-wrapper { 
-            overflow-x: auto; 
-            background: #fff; 
-            border: 1px solid #ccc; 
-            margin-top: 10px;
+        /* แก้ไขส่วน Canvas ให้แสดงเต็มหน้าจอ 100% ไม่ต้องเลื่อน */
+        .canvas-container {
+            width: 100%;
+            margin-top: 15px;
+            background: #fff;
+            border: 1px solid #ccc;
             border-radius: 8px;
+            line-height: 0; /* แก้ไขช่องว่างใต้ canvas */
         }
-        canvas { display: block; }
+        canvas { 
+            width: 100% !important; /* บังคับกว้างเต็มพื้นที่ Parent */
+            height: auto !important; /* ปรับสูงตามสัดส่วน */
+            display: block;
+        }
 
         .summary-bar { 
             background: var(--primary); color: white; padding: 15px; 
             border-radius: 12px; margin-bottom: 20px; 
             display: flex; flex-direction: column; gap: 10px; text-align: center; 
         }
-        @media (min-width: 600px) {
-            .summary-bar { flex-direction: row; justify-content: space-around; }
-        }
+        @media (min-width: 600px) { .summary-bar { flex-direction: row; justify-content: space-around; } }
 
         .error-msg { color: var(--error); font-weight: bold; padding: 10px; border: 1px solid var(--error); border-radius: 8px; margin-bottom: 10px; display: none; }
         .invalid input { border: 2px solid var(--error); background: #fff5f5; }
@@ -64,7 +59,7 @@
 <div class="container">
     <div class="sidebar">
         <h2 style="margin-top:0; color:var(--primary);">✂️ SmartCut 200</h2>
-        <div id="error-banner" class="error-msg">⚠️ บางชิ้นงานใหญ่เกิน 200x100!</div>
+        <div id="error-banner" class="error-msg">⚠️ ชิ้นงานใหญ่เกิน 200x100!</div>
 
         <div id="items-list">
             <div class="item-row">
@@ -94,16 +89,12 @@
 </div>
 
 <script>
-    const SHEET_W = 200, SHEET_H = 100, KERF = 1, SCALE = 5;
+    const SHEET_W = 200, SHEET_H = 100, KERF = 1, SCALE = 10; // เพิ่ม Scale เป็น 10 เพื่อความละเอียดของลายเส้น
 
     function addItem(w='', h='', qty='') {
         const div = document.createElement('div');
         div.className = 'item-row';
-        div.innerHTML = `
-            <input type="number" class="w" value="${w}" placeholder="ก">
-            <input type="number" class="h" value="${h}" placeholder="ส">
-            <input type="number" class="qty" value="${qty}" placeholder="น">
-            <button class="btn-del" onclick="this.parentElement.remove()">✕</button>`;
+        div.innerHTML = `<input type="number" class="w" value="${w}" placeholder="ก"><input type="number" class="h" value="${h}" placeholder="ส"><input type="number" class="qty" value="${qty}" placeholder="น"><button class="btn-del" onclick="this.parentElement.remove()">✕</button>`;
         document.getElementById('items-list').appendChild(div);
     }
 
@@ -111,22 +102,12 @@
         const rows = document.querySelectorAll('.item-row');
         let hasError = false;
         document.getElementById('error-banner').style.display = 'none';
-        
         rows.forEach(row => {
-            const w = parseFloat(row.querySelector('.w').value);
-            const h = parseFloat(row.querySelector('.h').value);
+            const w = parseFloat(row.querySelector('.w').value), h = parseFloat(row.querySelector('.h').value);
             row.classList.remove('invalid');
-            if (!( (w <= SHEET_W && h <= SHEET_H) || (h <= SHEET_W && w <= SHEET_H) )) {
-                row.classList.add('invalid');
-                hasError = true;
-            }
+            if (!( (w <= SHEET_W && h <= SHEET_H) || (h <= SHEET_W && w <= SHEET_H) )) { row.classList.add('invalid'); hasError = true; }
         });
-
-        if (hasError) {
-            document.getElementById('error-banner').style.display = 'block';
-            window.scrollTo({top: 0, behavior: 'smooth'});
-            return;
-        }
+        if (hasError) { document.getElementById('error-banner').style.display = 'block'; window.scrollTo({top: 0, behavior: 'smooth'}); return; }
         runCalculation();
     }
 
@@ -177,29 +158,31 @@
         const sumArea = document.getElementById('summary-area');
         res.innerHTML = "";
         let totalEff = sheets.reduce((a, b) => a + (b.usedArea / (SHEET_W * SHEET_H)), 0) / sheets.length * 100;
-        sumArea.innerHTML = `<div class="summary-bar"><span>📦 ใช้ไป ${sheets.length} แผ่น</span><span>✅ คุ้มค่า ${totalEff.toFixed(1)}%</span></div>`;
+        sumArea.innerHTML = `<div class="summary-bar"><span>📦 ใช้ ${sheets.length} แผ่น</span><span>✅ ประสิทธิภาพ ${totalEff.toFixed(1)}%</span></div>`;
         
         sheets.forEach((sheet, idx) => {
             const div = document.createElement('div');
-            div.style.marginBottom = "30px";
-            div.innerHTML = `<div style="margin-bottom:5px;"><b>แผ่นที่ ${idx+1}</b></div><div class="canvas-wrapper"><canvas id="c${idx}"></canvas></div>`;
+            div.style.marginBottom = "25px";
+            div.innerHTML = `<div style="margin-bottom:8px; font-weight:bold; color:#2c3e50;">แผ่นที่ ${idx+1}</div><div class="canvas-container"><canvas id="c${idx}"></canvas></div>`;
             res.appendChild(div);
+            
             const canvas = div.querySelector('canvas');
             canvas.width = SHEET_W * SCALE; canvas.height = SHEET_H * SCALE;
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = "#eee"; ctx.fillRect(0,0,canvas.width, canvas.height);
+            
+            ctx.fillStyle = "#f8f9fa"; ctx.fillRect(0,0,canvas.width, canvas.height);
             sheet.strips.forEach(st => {
                 st.items.forEach(it => {
                     ctx.fillStyle = "#e3f2fd"; ctx.fillRect(it.x*SCALE, it.y*SCALE, it.w*SCALE, it.h*SCALE);
-                    ctx.strokeStyle = "#2980b9"; ctx.strokeRect(it.x*SCALE, it.y*SCALE, it.w*SCALE, it.h*SCALE);
-                    ctx.fillStyle = "#000"; ctx.font = "bold 10px Arial"; ctx.textAlign = "center";
-                    ctx.fillText(`${it.w}x${it.h}`, (it.x + it.w/2)*SCALE, (it.y + it.h/2 + 4)*SCALE);
+                    ctx.strokeStyle = "#2980b9"; ctx.lineWidth = 2; ctx.strokeRect(it.x*SCALE, it.y*SCALE, it.w*SCALE, it.h*SCALE);
+                    ctx.fillStyle = "#000"; ctx.font = `bold ${4*SCALE}px Arial`; ctx.textAlign = "center";
+                    ctx.fillText(`${it.w}x${it.h}`, (it.x + it.w/2)*SCALE, (it.y + it.h/2 + 2)*SCALE);
                 });
-                ctx.setLineDash([8,4]); ctx.strokeStyle = "#d35400"; ctx.beginPath();
-                ctx.moveTo((st.x+st.w)*SCALE, 0); ctx.lineTo((st.x+st.w)*SCALE, SHEET_H*SCALE); ctx.stroke();
+                ctx.setLineDash([15,10]); ctx.strokeStyle = "#d35400"; ctx.lineWidth = 3;
+                ctx.beginPath(); ctx.moveTo((st.x+st.w)*SCALE, 0); ctx.lineTo((st.x+st.w)*SCALE, SHEET_H*SCALE); ctx.stroke();
             });
         });
-        window.scrollTo({top: sumArea.offsetTop, behavior: 'smooth'});
+        window.scrollTo({top: sumArea.offsetTop - 20, behavior: 'smooth'});
     }
 
     function exportData() {
