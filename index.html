@@ -3,26 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cutting Optimizer V9 - Safety Validation</title>
+    <title>SmartCut 200 Optimizer V10</title>
     <style>
-        :root { --primary: #2c3e50; --accent: #d35400; --bg: #f8f9fa; --error: #e74c3c; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); padding: 20px; margin: 0; }
-        .container { max-width: 1300px; margin: auto; display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
-        .sidebar { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); height: fit-content; }
-        .item-row { display: grid; grid-template-columns: 1fr 1fr 1fr 40px; gap: 8px; margin-bottom: 12px; }
-        .item-row.invalid input { border-color: var(--error); background-color: #fff5f5; }
-        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
-        button { cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.2s; }
-        .btn-add { background: #27ae60; color: white; width: 100%; padding: 12px; margin-bottom: 10px; }
-        .btn-calc { background: #2980b9; color: white; width: 100%; padding: 15px; font-size: 16px; width: 100%; margin-bottom: 10px; }
-        .btn-io { background: #7f8c8d; color: white; width: 48%; padding: 10px; font-size: 12px; }
-        .btn-del { background: #ccc; color: #333; }
-        .btn-del:hover { background: var(--error); color: white; }
-        .error-msg { color: var(--error); font-size: 12px; margin-bottom: 10px; display: none; font-weight: bold; }
-        .output { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .sheet-card { border: 1px solid #dee2e6; border-radius: 12px; padding: 20px; margin-bottom: 30px; }
-        canvas { width: 100%; border: 1px solid #444; background: #fff; }
-        .summary-bar { background: var(--primary); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: flex; justify-content: space-around; }
+        :root { --primary: #2c3e50; --accent: #d35400; --bg: #f4f7f6; --error: #e74c3c; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
+        
+        /* Layout หลัก: ปรับเป็น Column บนมือถือ และ Row บนคอม */
+        .container { 
+            max-width: 1300px; 
+            margin: auto; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+        }
+        @media (min-width: 992px) {
+            .container { flex-direction: row; padding: 20px; }
+            .sidebar { width: 350px; flex-shrink: 0; }
+            .output { flex-grow: 1; }
+        }
+
+        .sidebar { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .output { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+
+        /* ปรับปรุงการกรอกข้อมูล */
+        .item-row { display: grid; grid-template-columns: 1fr 1fr 1fr 40px; gap: 5px; margin-bottom: 10px; }
+        input { width: 100%; padding: 12px 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        
+        button { cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: 0.2s; touch-action: manipulation; }
+        .btn-add { background: #27ae60; color: white; width: 100%; padding: 12px; margin: 10px 0; }
+        .btn-calc { background: #2980b9; color: white; width: 100%; padding: 18px; font-size: 18px; width: 100%; margin-top: 5px; }
+        .btn-io { background: #7f8c8d; color: white; flex: 1; padding: 10px; font-size: 14px; margin: 5px; }
+        .btn-del { background: #eee; color: #666; font-size: 18px; }
+
+        /* ส่วนแสดงผล Canvas ให้เลื่อนซ้ายขวาได้บนมือถือ */
+        .canvas-wrapper { 
+            overflow-x: auto; 
+            background: #fff; 
+            border: 1px solid #ccc; 
+            margin-top: 10px;
+            border-radius: 8px;
+        }
+        canvas { display: block; }
+
+        .summary-bar { 
+            background: var(--primary); color: white; padding: 15px; 
+            border-radius: 12px; margin-bottom: 20px; 
+            display: flex; flex-direction: column; gap: 10px; text-align: center; 
+        }
+        @media (min-width: 600px) {
+            .summary-bar { flex-direction: row; justify-content: space-around; }
+        }
+
+        .error-msg { color: var(--error); font-weight: bold; padding: 10px; border: 1px solid var(--error); border-radius: 8px; margin-bottom: 10px; display: none; }
+        .invalid input { border: 2px solid var(--error); background: #fff5f5; }
         #fileInput { display: none; }
     </style>
 </head>
@@ -30,11 +63,8 @@
 
 <div class="container">
     <div class="sidebar">
-        <title>SmartCut Optimizer</title>
-        <h2 style="margin-top:0;">🛡️ SmartCut Optimizer</h2>
-        <p style="font-size: 13px; color: #666;">ขนาดวัสดุหลัก: <b>200 x 100 ซม.</b></p>
-        
-        <div id="error-banner" class="error-msg">⚠️ มีชิ้นงานขนาดใหญ่เกินวัสดุ!</div>
+        <h2 style="margin-top:0; color:var(--primary);">✂️ SmartCut 200</h2>
+        <div id="error-banner" class="error-msg">⚠️ บางชิ้นงานใหญ่เกิน 200x100!</div>
 
         <div id="items-list">
             <div class="item-row">
@@ -45,10 +75,10 @@
             </div>
         </div>
 
-        <button class="btn-add" onclick="addItem()">+ เพิ่มชิ้นงาน</button>
+        <button class="btn-add" onclick="addItem()">+ เพิ่มรายการ</button>
         <button class="btn-calc" onclick="validateAndRun()">คำนวณแผนการตัด</button>
         
-        <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+        <div style="display: flex; margin-top: 10px;">
             <button class="btn-io" onclick="exportData()">📤 Export</button>
             <button class="btn-io" onclick="document.getElementById('fileInput').click()">📥 Import</button>
             <input type="file" id="fileInput" accept=".json" onchange="importData(event)">
@@ -58,7 +88,7 @@
     <div class="output">
         <div id="summary-area"></div>
         <div id="results-area">
-             <div style="text-align:center; padding:100px; color:#ccc;">รอการคำนวณ...</div>
+             <p style="text-align:center; color:#999; padding:40px;">กดคำนวณเพื่อดูแผนการวางวัสดุ</p>
         </div>
     </div>
 </div>
@@ -70,55 +100,41 @@
         const div = document.createElement('div');
         div.className = 'item-row';
         div.innerHTML = `
-            <input type="number" class="w" value="${w}" placeholder="กว้าง">
-            <input type="number" class="h" value="${h}" placeholder="สูง">
-            <input type="number" class="qty" value="${qty}" placeholder="ตัว">
+            <input type="number" class="w" value="${w}" placeholder="ก">
+            <input type="number" class="h" value="${h}" placeholder="ส">
+            <input type="number" class="qty" value="${qty}" placeholder="น">
             <button class="btn-del" onclick="this.parentElement.remove()">✕</button>`;
         document.getElementById('items-list').appendChild(div);
     }
 
     function validateAndRun() {
         const rows = document.querySelectorAll('.item-row');
-        const errorBanner = document.getElementById('error-banner');
         let hasError = false;
-
-        errorBanner.style.display = 'none';
+        document.getElementById('error-banner').style.display = 'none';
         
         rows.forEach(row => {
             const w = parseFloat(row.querySelector('.w').value);
             const h = parseFloat(row.querySelector('.h').value);
             row.classList.remove('invalid');
-
-            // ตรวจสอบว่าชิ้นงาน (ไม่ว่าจะวางท่าไหน) ต้องไม่เกินขนาดแผ่น
-            // กรณีที่ 1: วางปกติ W <= 200 และ H <= 100
-            // กรณีที่ 2: วางสลับด้าน W <= 100 และ H <= 200
-            const fitsNormal = (w <= SHEET_W && h <= SHEET_H);
-            const fitsRotated = (h <= SHEET_W && w <= SHEET_H);
-
-            if (!fitsNormal && !fitsRotated) {
+            if (!( (w <= SHEET_W && h <= SHEET_H) || (h <= SHEET_W && w <= SHEET_H) )) {
                 row.classList.add('invalid');
                 hasError = true;
             }
         });
 
         if (hasError) {
-            errorBanner.style.display = 'block';
-            alert('ไม่สามารถคำนวณได้: มีชิ้นงานบางส่วนใหญ่เกินขนาดวัสดุ (200x100 ซม.)');
+            document.getElementById('error-banner').style.display = 'block';
+            window.scrollTo({top: 0, behavior: 'smooth'});
             return;
         }
-
         runCalculation();
     }
 
     function runCalculation() {
         let items = [];
         document.querySelectorAll('.item-row').forEach(row => {
-            let w = parseFloat(row.querySelector('.w').value);
-            let h = parseFloat(row.querySelector('.h').value);
-            let qty = parseInt(row.querySelector('.qty').value);
-            if(w && h && qty) {
-                for(let i=0; i<qty; i++) items.push({w, h});
-            }
+            let w = parseFloat(row.querySelector('.w').value), h = parseFloat(row.querySelector('.h').value), qty = parseInt(row.querySelector('.qty').value);
+            if(w && h && qty) for(let i=0; i<qty; i++) items.push({w, h});
         });
 
         items.sort((a, b) => (b.w * b.h) - (a.w * a.h));
@@ -139,11 +155,9 @@
                     }
                 }
                 if (placed) break;
-
                 let wUsed = sheet.strips.reduce((s, st) => s + st.w + KERF, 0);
                 let bestW = Math.min(item.w, item.h), bestH = Math.max(item.w, item.h);
                 if (bestH > SHEET_H) [bestW, bestH] = [item.w, item.h];
-
                 if (wUsed + bestW <= SHEET_W) {
                     sheet.strips.push({ x: wUsed, w: bestW, items: [{ w: bestW, h: bestH, x: wUsed, y: 0 }] });
                     sheet.usedArea += (item.w * item.h); placed = true; break;
@@ -163,13 +177,14 @@
         const sumArea = document.getElementById('summary-area');
         res.innerHTML = "";
         let totalEff = sheets.reduce((a, b) => a + (b.usedArea / (SHEET_W * SHEET_H)), 0) / sheets.length * 100;
-        sumArea.innerHTML = `<div class="summary-bar"><span>แผ่นที่ใช้: ${sheets.length} แผ่น</span><span>ประสิทธิภาพ: ${totalEff.toFixed(1)}%</span></div>`;
+        sumArea.innerHTML = `<div class="summary-bar"><span>📦 ใช้ไป ${sheets.length} แผ่น</span><span>✅ คุ้มค่า ${totalEff.toFixed(1)}%</span></div>`;
+        
         sheets.forEach((sheet, idx) => {
-            const card = document.createElement('div');
-            card.className = 'sheet-card';
-            card.innerHTML = `<div><b>แผ่นที่ ${idx+1}</b></div><canvas id="c${idx}"></canvas>`;
-            res.appendChild(card);
-            const canvas = card.querySelector('canvas');
+            const div = document.createElement('div');
+            div.style.marginBottom = "30px";
+            div.innerHTML = `<div style="margin-bottom:5px;"><b>แผ่นที่ ${idx+1}</b></div><div class="canvas-wrapper"><canvas id="c${idx}"></canvas></div>`;
+            res.appendChild(div);
+            const canvas = div.querySelector('canvas');
             canvas.width = SHEET_W * SCALE; canvas.height = SHEET_H * SCALE;
             const ctx = canvas.getContext('2d');
             ctx.fillStyle = "#eee"; ctx.fillRect(0,0,canvas.width, canvas.height);
@@ -184,6 +199,7 @@
                 ctx.moveTo((st.x+st.w)*SCALE, 0); ctx.lineTo((st.x+st.w)*SCALE, SHEET_H*SCALE); ctx.stroke();
             });
         });
+        window.scrollTo({top: sumArea.offsetTop, behavior: 'smooth'});
     }
 
     function exportData() {
@@ -192,10 +208,7 @@
             data.push({ w: row.querySelector('.w').value, h: row.querySelector('.h').value, qty: row.querySelector('.qty').value });
         });
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'cutting_list.json';
-        a.click();
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'cutting_list.json'; a.click();
     }
 
     function importData(event) {
